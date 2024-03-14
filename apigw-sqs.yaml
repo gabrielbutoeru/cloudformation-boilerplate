@@ -1,0 +1,113 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Cloudformation template that creates a Public APIGW with direct SQS integration (Integration type: AWS Service)"
+
+Parameters:
+  Environment:
+    Type: String
+    Default: "noprod"
+    AllowedValues:
+      - "noprod"
+      - "prod"
+    Description: Name of the environment
+
+  Project:
+    Type: String
+    Default: "test"
+    Description: Name of the project 
+
+Resources:
+  ApiGatewayDeployment:
+    Type: "AWS::ApiGateway::Deployment"
+    Properties:
+      RestApiId:
+        Ref: "ApiGatewayRestApi"
+
+  IAMRoleAPIGWRoleforSQS:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      ManagedPolicyArns:
+      - "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+      - "arn:aws:iam::aws:policy/AmazonSQSReadOnlyAccess"
+      - "arn:aws:iam::aws:policy/AmazonEventBridgePipesReadOnlyAccess"
+      MaxSessionDuration: 3600
+      RoleName: "APIGWRoleforSQS"
+      Description: "Allows API Gateway to push logs to CloudWatch Logs."
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Action: "sts:AssumeRole"
+          Effect: "Allow"
+          Principal:
+            Service: "apigateway.amazonaws.com"
+          Sid: ""
+
+  ApiGatewayRestApi:
+    Type: "AWS::ApiGateway::RestApi"
+    Properties:
+      ApiKeySourceType: "HEADER"
+      EndpointConfiguration:
+        Types:
+        - "REGIONAL"
+      DisableExecuteApiEndpoint: false
+      Name: "test"
+  ApiGatewayStage00Test00jIqcd:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::ApiGateway::Stage"
+    DeletionPolicy: "Retain"
+    Properties:
+      DeploymentId:
+        Fn::GetAtt:
+        - "ApiGatewayDeployment00d7dg1c00h6lZb"
+        - "DeploymentId"
+      StageName: "Test"
+      TracingEnabled: false
+      RestApiId:
+        Ref: "ApiGatewayRestApi"
+      MethodSettings:
+      - CacheTtlInSeconds: 300
+        LoggingLevel: "OFF"
+        ResourcePath: "/~1test"
+        CacheDataEncrypted: false
+        DataTraceEnabled: false
+        ThrottlingBurstLimit: 10
+        CachingEnabled: false
+        MetricsEnabled: false
+        HttpMethod: "POST"
+        ThrottlingRateLimit: 10
+      CacheClusterSize: "0.5"
+      CacheClusterEnabled: false
+
+  ApiGatewayKey:
+    Type: "AWS::ApiGateway::ApiKey"
+    Properties:
+      StageKeys: []
+      Value: "lS8AVcUsPvRskseyAFK5aREqwaBz6e35XooOT3zh"
+      Enabled: true
+      Name: "test"
+
+  SQSQueueDLQ:
+    Type: "AWS::SQS::Queue"
+    Properties:
+      SqsManagedSseEnabled: true
+      ReceiveMessageWaitTimeSeconds: 0
+      DelaySeconds: 0
+      MessageRetentionPeriod: 345600
+      MaximumMessageSize: 262144
+      VisibilityTimeout: 30
+      QueueName: "test-queue-dlq"
+
+  SQSQueue:
+    Type: "AWS::SQS::Queue"
+    Properties:
+      SqsManagedSseEnabled: true
+      ReceiveMessageWaitTimeSeconds: 0
+      DelaySeconds: 0
+      RedrivePolicy:
+        deadLetterTargetArn: "arn:aws:sqs:us-east-1:897995596942:test-queue-dlq"
+        maxReceiveCount: 10
+      MessageRetentionPeriod: 345600
+      MaximumMessageSize: 262144
+      VisibilityTimeout: 30
+      QueueName: "test-queue"
